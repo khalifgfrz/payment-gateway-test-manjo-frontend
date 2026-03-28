@@ -54,9 +54,11 @@ export default function Tracker() {
     setResult(null);
 
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/qr/status/${referenceNo}`);
+      const res = await fetch(`http://localhost:8080/api/v1/transactions?reference_no=${encodeURIComponent(referenceNo)}`);
 
       if (res.status === 404) throw new Error("NOT_FOUND");
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data: Transaction = await res.json();
       setResult(data);
