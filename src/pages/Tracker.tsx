@@ -1,14 +1,28 @@
 import { useState } from "react";
 
 interface Transaction {
+  id?: string;
   merchant_id: string;
   amount: number;
   trx_id: string;
-  partner_reference_no: string;
+  partner_reference_no?: string;
   reference_no: string;
   status: string;
   transaction_date: string;
-  paid_date: string;
+  paid_date?: {
+    String?: string;
+    Valid?: boolean;
+  } | string;
+}
+
+interface ApiResponse {
+  data: Transaction[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
 const getStatusColor = (status: string) => {
@@ -56,19 +70,19 @@ export default function Tracker() {
     try {
       const res = await fetch(`http://localhost:8080/api/v1/transactions?reference_no=${encodeURIComponent(referenceNo)}`);
 
-      if (res.status === 404) throw new Error("NOT_FOUND");
-
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const data: Transaction = await res.json();
-      setResult(data);
+      const apiResponse: ApiResponse = await res.json();
+      
+      if (!apiResponse.data || apiResponse.data.length === 0) {
+        setError("Transaksi Tidak Ditemukan");
+        return;
+      }
+
+      setResult(apiResponse.data[0]);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        if (err.message === "NOT_FOUND") {
-          setError("Transaksi Tidak Ditemukan");
-        } else {
-          setError(err.message);
-        }
+        setError(err.message);
       } else {
         setError("Terjadi kesalahan");
       }
@@ -143,12 +157,27 @@ export default function Tracker() {
               { label: "Transaction Date", key: "transaction_date" },
               { label: "Paid Date", key: "paid_date" },
             ].map(({ label, key }) => {
-              const value = result[key as keyof Transaction];
+              let displayValue = "";
+              
+              if (key === "paid_date") {
+                const paidDate = result.paid_date;
+                if (typeof paidDate === "object" && paidDate?.Valid) {
+                  displayValue = paidDate.String || "-";
+                } else if (typeof paidDate === "string" && paidDate) {
+                  displayValue = paidDate;
+                } else {
+                  displayValue = "-";
+                }
+              } else {
+                const value = result[key as keyof Transaction];
+                displayValue = value ? String(value) : "-";
+              }
+
               return (
                 <div key={key} className="border-b pb-4">
                   <p className="text-sm text-slate-600 mb-1">{label}</p>
-                  <p className={`font-semibold text-lg ${key === "status" ? getStatusColor(String(value)) : "text-slate-900"}`}>
-                    {String(value) || "-"}
+                  <p className={`font-semibold text-lg ${key === "status" ? getStatusColor(displayValue) : "text-slate-900"}`}>
+                    {displayValue}
                   </p>
                 </div>
               );
