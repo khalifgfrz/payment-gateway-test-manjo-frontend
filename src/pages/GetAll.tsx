@@ -1,14 +1,25 @@
 import { useState, useEffect } from "react";
 
 interface Transaction {
+  id: string;
   merchant_id: string;
   amount: number;
   trx_id: string;
-  partner_reference_no: string;
-  reference_no: string;
-  status: string;
-  transaction_date: string;
-  paid_date: string;
+  partner_reference_no?: string;
+  reference_no?: string;
+  status?: string;
+  transaction_date?: string;
+  paid_date?: string;
+}
+
+interface ApiResponse {
+  data: Transaction[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
 const getStatusBadge = (status: string) => {
@@ -42,25 +53,29 @@ export default function GetAll() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [filter, setFilter] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, total_pages: 1 });
 
   useEffect(() => {
-    fetchAllTransactions();
+    fetchAllTransactions(1);
   }, []);
 
-  const fetchAllTransactions = async () => {
+  const fetchAllTransactions = async (page: number) => {
     setLoading(true);
     setError("");
     setTransactions([]);
 
     try {
-      const res = await fetch("http://localhost:8080/api/v1/qr/all");
+      const res = await fetch(`http://localhost:8080/api/v1/qr/all?page=${page}&limit=10`);
 
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
 
-      const data: Transaction[] = await res.json();
-      setTransactions(Array.isArray(data) ? data : []);
+      const data: ApiResponse = await res.json();
+      setTransactions(Array.isArray(data.data) ? data.data : []);
+      setMeta(data.meta || { page: 1, limit: 10, total: 0, total_pages: 1 });
+      setCurrentPage(page);
     } catch (err) {
       if (err instanceof Error) {
         setError(`Error: ${err.message}`);
@@ -84,7 +99,7 @@ export default function GetAll() {
   });
 
   const stats = {
-    total: transactions.length,
+    total: meta.total,
     success: transactions.filter((t) => t.status?.toUpperCase() === "SUCCESS").length,
     pending: transactions.filter((t) => t.status?.toUpperCase() === "PENDING").length,
     failed: transactions.filter((t) => t.status?.toUpperCase() === "FAILED").length,
@@ -133,7 +148,7 @@ export default function GetAll() {
           </div>
 
           <button
-            onClick={fetchAllTransactions}
+            onClick={() => fetchAllTransactions(1)}
             disabled={loading}
             className="btn px-6"
           >
@@ -228,11 +243,51 @@ export default function GetAll() {
             </table>
           </div>
 
-          <div className="bg-slate-50 px-6 py-3 border-t border-slate-200">
-            <p className="text-sm text-slate-600">
-              Menampilkan <span className="font-semibold">{filteredTransactions.length}</span> dari{" "}
-              <span className="font-semibold">{transactions.length}</span> transaksi
-            </p>
+          <div className="bg-slate-50 px-6 py-4 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-600">
+                Halaman <span className="font-semibold">{currentPage}</span> dari{" "}
+                <span className="font-semibold">{meta.total_pages}</span> • Total{" "}
+                <span className="font-semibold">{meta.total}</span> transaksi
+              </p>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fetchAllTransactions(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
+                  className="px-4 py-2 bg-slate-200 text-slate-900 rounded-lg hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                >
+                  Sebelumnya
+                </button>
+
+                {Array.from({ length: Math.min(meta.total_pages, 5) }, (_, i) => {
+                  const page = currentPage > 3 ? currentPage - 2 + i : i + 1;
+                  if (page > meta.total_pages) return null;
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => fetchAllTransactions(page)}
+                      disabled={loading}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        page === currentPage
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-200 text-slate-900 hover:bg-slate-300"
+                      } disabled:opacity-50`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => fetchAllTransactions(currentPage + 1)}
+                  disabled={currentPage === meta.total_pages || loading}
+                  className="px-4 py-2 bg-slate-200 text-slate-900 rounded-lg hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                >
+                  Selanjutnya
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
