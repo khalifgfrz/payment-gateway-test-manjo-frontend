@@ -1,4 +1,5 @@
 import { useState } from "react";
+import QRCode from "qrcode.react";
 
 interface QRResponse {
   referenceNo: string;
@@ -189,8 +190,15 @@ export default function GenerateQR() {
             <div className="card p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4">QR Code Generated</h3>
 
-              <div className="bg-slate-50 p-6 rounded-lg mb-4">
-                <p className="text-center text-slate-600 mb-3 font-mono text-sm break-all">{result.qrContent}</p>
+              <div className="bg-white p-6 rounded-lg border-2 border-slate-200 mb-4 flex flex-col items-center">
+                <QRCode
+                  value={result.qrContent}
+                  size={250}
+                  level="H"
+                  includeMargin={true}
+                  className="mb-4"
+                />
+                <p className="text-xs text-slate-500 text-center font-mono">{result.qrContent}</p>
               </div>
 
               <div className="space-y-3">
@@ -207,6 +215,21 @@ export default function GenerateQR() {
                   className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
                 >
                   Copy QR Content
+                </button>
+
+                <button
+                  onClick={() => {
+                    const qrElement = document.querySelector("canvas");
+                    if (qrElement) {
+                      const link = document.createElement("a");
+                      link.href = qrElement.toDataURL("image/png");
+                      link.download = `qr-${result.referenceNo}.png`;
+                      link.click();
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Download QR Code
                 </button>
               </div>
 

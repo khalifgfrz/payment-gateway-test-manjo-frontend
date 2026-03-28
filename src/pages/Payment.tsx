@@ -5,6 +5,11 @@ interface PaymentResponse {
   responseCode?: string;
 }
 
+interface ErrorResponse {
+  error: number;
+  message: string;
+}
+
 export default function Payment() {
   const [form, setForm] = useState({
     referenceNo: "",
@@ -81,12 +86,17 @@ export default function Payment() {
         }),
       });
 
-      const data: PaymentResponse = await res.json();
-      setMessage(data);
-      
-      if (res.ok) {
-        setForm({ referenceNo: "", amount: "" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const errorData = data as ErrorResponse;
+        setError(errorData.message || "Terjadi kesalahan saat memproses pembayaran");
+        return;
       }
+
+      const paymentData = data as PaymentResponse;
+      setMessage(paymentData);
+      setForm({ referenceNo: "", amount: "" });
     } catch (err) {
       setError(`Error: ${err instanceof Error ? err.message : "Terjadi kesalahan saat memproses pembayaran"}`);
     } finally {
