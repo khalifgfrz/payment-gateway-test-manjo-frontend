@@ -37,10 +37,6 @@ export default function GenerateQR() {
       setError("Amount wajib diisi");
       return false;
     }
-    if (isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
-      setError("Amount harus berupa angka positif");
-      return false;
-    }
     return true;
   };
 
@@ -59,7 +55,7 @@ export default function GenerateQR() {
 
       console.error("Gagal generate signature:", axiosError.response?.data || axiosError.message);
 
-      throw new Error(axiosError.response?.data?.message || "Gagal membuat tanda tangan digital");
+      throw new Error(axiosError.response?.data?.message || "Gagal membuat QR Code");
     }
   };
 
@@ -98,7 +94,7 @@ export default function GenerateQR() {
       const axiosError = err as AxiosError<{ message?: string }>;
       const errorMessage = axiosError.response?.data?.message || axiosError.message || "Gagal membuat QR";
 
-      setError(`Error: ${errorMessage}`);
+      setError(`${errorMessage}`);
     } finally {
       setLoading(false);
     }
