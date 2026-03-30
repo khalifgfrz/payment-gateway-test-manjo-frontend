@@ -1,21 +1,6 @@
 import { useState } from "react";
-
-interface Transaction {
-  id?: string;
-  merchant_id: string;
-  amount: number;
-  trx_id: string;
-  partner_reference_no?: string;
-  reference_no: string;
-  status: string;
-  transaction_date: string;
-  paid_date?:
-    | {
-        String?: string;
-        Valid?: boolean;
-      }
-    | string;
-}
+import apiClient from "../services/api";
+import type { Transaction } from "../type";
 
 const getStatusColor = (status: string) => {
   switch (status?.toUpperCase()) {
@@ -30,7 +15,7 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (status?: string) => {
   switch (status?.toUpperCase()) {
     case "SUCCESS":
       return "bg-green-100 text-green-800";
@@ -40,6 +25,19 @@ const getStatusBadge = (status: string) => {
       return "bg-red-100 text-red-800";
     default:
       return "bg-gray-100 text-gray-800";
+  }
+};
+
+const getStatusIcon = (status: string | undefined) => {
+  switch (status?.toUpperCase()) {
+    case "SUCCESS":
+      return "✓";
+    case "PENDING":
+      return "⏳";
+    case "FAILED":
+      return "✕";
+    default:
+      return "•";
   }
 };
 
@@ -60,18 +58,16 @@ export default function Tracker() {
     setResult(null);
 
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/tracker/${referenceNo}`);
+      const res = await apiClient.get<Transaction>(`/tracker/${referenceNo}`);
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const responseData = res.data;
 
-      const data: Transaction = await res.json();
-
-      if (!data) {
+      if (!responseData) {
         setError("Transaksi Tidak Ditemukan");
         return;
       }
 
-      setResult(data);
+      setResult(responseData);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -127,7 +123,9 @@ export default function Tracker() {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-semibold text-slate-900">Detail Transaksi</h3>
-            <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusBadge(result.status)}`}>{result.status}</span>
+            <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusBadge(result.status || "UNKNOWN")}`}>
+              {getStatusIcon(result.status)} {result.status}
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -145,13 +143,21 @@ export default function Tracker() {
 
               if (key === "paid_date") {
                 const paidDate = result.paid_date;
+                let rawPaidDate = "";
+
                 if (typeof paidDate === "object" && paidDate?.Valid) {
-                  displayValue = paidDate.String || "-";
+                  rawPaidDate = paidDate.String || "-";
                 } else if (typeof paidDate === "string" && paidDate) {
-                  displayValue = paidDate;
-                } else {
-                  displayValue = "-";
+                  rawPaidDate = paidDate;
                 }
+
+                displayValue = rawPaidDate ? new Date(rawPaidDate).toLocaleString("id-ID") : "-";
+              } else if (key === "transaction_date") {
+                const trxDate = result.transaction_date;
+                displayValue = trxDate ? new Date(trxDate).toLocaleString("id-ID") : "-";
+              } else if (key === "amount") {
+                const amt = result.amount;
+                displayValue = typeof amt === "number" ? `Rp ${amt.toLocaleString("id-ID")}` : String(amt || "-");
               } else {
                 const value = result[key as keyof Transaction];
                 displayValue = value ? String(value) : "-";

@@ -1,26 +1,7 @@
 import { useState, useEffect } from "react";
-
-interface Transaction {
-  id: string;
-  merchant_id: string;
-  amount: number;
-  trx_id: string;
-  partner_reference_no?: string;
-  reference_no?: string;
-  status?: string;
-  transaction_date?: string;
-  paid_date?: string;
-}
-
-interface ApiResponse {
-  data: Transaction[];
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    total_pages: number;
-  };
-}
+import apiClient from "../services/api";
+import type { AxiosError } from "axios";
+import type { ApiResponse, Transaction } from "../type";
 
 const getStatusBadge = (status: string | undefined) => {
   switch (status?.toUpperCase()) {
@@ -63,25 +44,25 @@ export default function GetAll() {
   const fetchAllTransactions = async (page: number) => {
     setLoading(true);
     setError("");
-    setTransactions([]);
 
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/transactions?page=${page}&limit=10`);
+      const res = await apiClient.get<ApiResponse>("/transactions", {
+        params: {
+          page: page,
+          limit: 10,
+        },
+      });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      const responseData = res.data;
 
-      const data: ApiResponse = await res.json();
-      setTransactions(Array.isArray(data.data) ? data.data : []);
-      setMeta(data.meta || { page: 1, limit: 10, total: 0, total_pages: 1 });
+      setTransactions(Array.isArray(responseData.data) ? responseData.data : []);
+      setMeta(responseData.meta || { page: 1, limit: 10, total: 0, total_pages: 1 });
       setCurrentPage(page);
     } catch (err) {
-      if (err instanceof Error) {
-        setError(`Error: ${err.message}`);
-      } else {
-        setError("Gagal memuat data transaksi");
-      }
+      const axiosError = err as AxiosError<{ message?: string }>;
+      const msg = axiosError.response?.data?.message || axiosError.message || "Gagal memuat data";
+
+      setError(`Error: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -108,22 +89,22 @@ export default function GetAll() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="card p-4 bg-gradient-to-br from-blue-50 to-blue-100">
+        <div className="card p-4 bg-linear-to-br from-blue-50 to-blue-100">
           <p className="text-sm text-slate-600 mb-1">Total Transaksi</p>
           <p className="text-3xl font-bold text-blue-600">{stats.total}</p>
         </div>
 
-        <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
+        <div className="card p-4 bg-linear-to-br from-green-50 to-green-100">
           <p className="text-sm text-slate-600 mb-1">Sukses</p>
           <p className="text-3xl font-bold text-green-600">{stats.success}</p>
         </div>
 
-        <div className="card p-4 bg-gradient-to-br from-yellow-50 to-yellow-100">
+        <div className="card p-4 bg-linear-to-br from-yellow-50 to-yellow-100">
           <p className="text-sm text-slate-600 mb-1">Pending</p>
           <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
         </div>
 
-        <div className="card p-4 bg-gradient-to-br from-red-50 to-red-100">
+        <div className="card p-4 bg-linear-to-br from-red-50 to-red-100">
           <p className="text-sm text-slate-600 mb-1">Gagal</p>
           <p className="text-3xl font-bold text-red-600">{stats.failed}</p>
         </div>

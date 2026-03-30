@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
-
-interface QRResponse {
-  referenceNo: string;
-  qrContent: string;
-}
+import type { AxiosError } from "axios";
+import apiClient from "../services/api";
+import type { QRResponse, SignatureResponse } from "../type";
 
 export default function GenerateQR() {
   const [form, setForm] = useState({
@@ -46,21 +44,23 @@ export default function GenerateQR() {
     return true;
   };
 
-  const generateSignature = async () => {
-    const res = await fetch("http://localhost:8080/api/v1/signature", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+  const generateSignature = async (): Promise<SignatureResponse> => {
+    try {
+      const res = await apiClient.post<SignatureResponse>("/signature", {
         type: "generateQR",
         partnerReferenceNo: form.partnerReferenceNo,
         merchantId: form.merchantId,
         amountValue: form.amount,
-      }),
-    });
+      });
 
-    return res.json();
+      return res.data;
+    } catch (err) {
+      const axiosError = err as AxiosError<{ message?: string }>;
+
+      console.error("Gagal generate signature:", axiosError.response?.data || axiosError.message);
+
+      throw new Error(axiosError.response?.data?.message || "Gagal membuat tanda tangan digital");
+    }
   };
 
   const handleSubmit = async () => {
@@ -75,13 +75,9 @@ export default function GenerateQR() {
     try {
       const sig = await generateSignature();
 
-      const res = await fetch("http://localhost:8080/api/v1/qr/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-SIGNATURE": sig.signature,
-        },
-        body: JSON.stringify({
+      const response = await apiClient.post<QRResponse>(
+        "/qr/generate",
+        {
           partnerReferenceNo: form.partnerReferenceNo,
           merchantId: form.merchantId,
           trx_id: form.trx_id,
@@ -89,13 +85,20 @@ export default function GenerateQR() {
             value: form.amount,
             currency: "IDR",
           },
-        }),
-      });
+        },
+        {
+          headers: {
+            "X-SIGNATURE": sig.signature,
+          },
+        },
+      );
 
-      const data: QRResponse = await res.json();
-      setResult(data);
+      setResult(response.data);
     } catch (err) {
-      setError(`Error: ${err instanceof Error ? err.message : "Terjadi kesalahan"}`);
+      const axiosError = err as AxiosError<{ message?: string }>;
+      const errorMessage = axiosError.response?.data?.message || axiosError.message || "Gagal membuat QR";
+
+      setError(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

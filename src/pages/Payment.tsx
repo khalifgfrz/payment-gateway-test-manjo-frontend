@@ -1,14 +1,8 @@
 import { useState } from "react";
-
-interface PaymentResponse {
-  responseMessage: string;
-  responseCode?: string;
-}
-
-interface ErrorResponse {
-  error: number;
-  message: string;
-}
+import apiClient from "../services/api";
+import type { SignatureResponse } from "../type";
+import type { AxiosError } from "axios";
+import type { PaymentResponse } from "../type";
 
 export default function Payment() {
   const [form, setForm] = useState({
@@ -40,20 +34,22 @@ export default function Payment() {
     return true;
   };
 
-  const generateSignature = async () => {
-    const res = await fetch("http://localhost:8080/api/v1/signature", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+  const generateSignature = async (): Promise<SignatureResponse> => {
+    try {
+      const res = await apiClient.post<SignatureResponse>("/signature", {
         type: "payment",
         originalReferenceNo: form.referenceNo,
         amountValue: form.amount,
-      }),
-    });
+      });
 
-    return res.json();
+      return res.data;
+    } catch (err) {
+      const axiosError = err as AxiosError<{ message?: string }>;
+
+      console.error("Gagal generate signature:", axiosError.response?.data || axiosError.message);
+
+      throw new Error(axiosError.response?.data?.message || "Gagal membuat tanda tangan digital");
+    }
   };
 
   const handlePay = async () => {
@@ -69,13 +65,9 @@ export default function Payment() {
     try {
       const sig = await generateSignature();
 
-      const res = await fetch("http://localhost:8080/api/v1/qr/payment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-SIGNATURE": sig.signature,
-        },
-        body: JSON.stringify({
+      const response = await apiClient.post<PaymentResponse>(
+        "/qr/payment",
+        {
           originalReferenceNo: form.referenceNo,
           transactionStatusDesc: "SUCCESS",
           paidTime: new Date().toISOString(),
@@ -83,22 +75,21 @@ export default function Payment() {
             value: form.amount,
             currency: "IDR",
           },
-        }),
-      });
+        },
+        {
+          headers: {
+            "X-SIGNATURE": sig.signature,
+          },
+        },
+      );
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        const errorData = data as ErrorResponse;
-        setError(errorData.message || "Terjadi kesalahan saat memproses pembayaran");
-        return;
-      }
-
-      const paymentData = data as PaymentResponse;
-      setMessage(paymentData);
+      setMessage(response.data);
       setForm({ referenceNo: "", amount: "" });
     } catch (err) {
-      setError(`Error: ${err instanceof Error ? err.message : "Terjadi kesalahan saat memproses pembayaran"}`);
+      const axiosError = err as AxiosError<{ message?: string }>;
+      const errorMessage = axiosError.response?.data?.message || axiosError.message || "Gagal membuat QR";
+
+      setError(`${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -155,7 +146,6 @@ export default function Payment() {
                 </div>
                 <div>
                   <p className={`font-semibold ${message.responseCode === "0000" ? "text-green-800" : "text-yellow-800"}`}>{message.responseMessage}</p>
-                  {message.responseCode && <p className={`text-sm ${message.responseCode === "0000" ? "text-green-700" : "text-yellow-700"}`}>Code: {message.responseCode}</p>}
                 </div>
               </div>
             </div>
